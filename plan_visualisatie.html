@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto Ticker - Visueel Plan</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0d1117; color:#e6edf3; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; padding:30px; max-width:1100px; margin:0 auto; }
+h1 { text-align:center; color:#58a6ff; margin-bottom:6px; font-size:1.8em; }
+h2 { color:#58a6ff; margin:40px 0 16px; font-size:1.3em; border-bottom:1px solid #30363d; padding-bottom:8px; }
+h3 { color:#ffa657; margin:20px 0 10px; font-size:1.05em; }
+.subtitle { text-align:center; color:#8b949e; margin-bottom:40px; }
+.section { background:#161b22; border:1px solid #30363d; border-radius:12px; padding:24px; margin:20px 0; }
+
+/* =================== LED MATRIX SIMULATIE =================== */
+.matrix-wrapper { text-align:center; margin:20px 0; }
+.matrix-label { color:#8b949e; font-size:0.85em; margin-bottom:8px; }
+.led-matrix {
+  display:inline-grid;
+  grid-template-columns: repeat(64, 1fr);
+  grid-template-rows: repeat(32, 1fr);
+  gap:1px;
+  background:#000;
+  border:3px solid #333;
+  border-radius:4px;
+  padding:2px;
+  width:100%;
+  max-width:700px;
+  aspect-ratio: 2/1;
+}
+.led-matrix .px {
+  aspect-ratio:1;
+  border-radius:50%;
+  min-width:0;
+}
+.led-off { background:#111; }
+
+/* =================== ARCHITECTUUR DIAGRAM =================== */
+.arch-diagram {
+  display:flex;
+  flex-wrap:wrap;
+  gap:20px;
+  justify-content:center;
+  margin:20px 0;
+}
+.arch-box {
+  background:#21262d;
+  border:2px solid #30363d;
+  border-radius:10px;
+  padding:16px 20px;
+  text-align:center;
+  min-width:140px;
+  position:relative;
+}
+.arch-box.highlight { border-color:#58a6ff; box-shadow:0 0 15px rgba(88,166,255,0.2); }
+.arch-box.green { border-color:#3fb950; box-shadow:0 0 15px rgba(63,185,80,0.15); }
+.arch-box.orange { border-color:#ffa657; box-shadow:0 0 15px rgba(255,166,87,0.15); }
+.arch-box .icon { font-size:2em; margin-bottom:6px; }
+.arch-box .label { font-weight:600; font-size:0.95em; }
+.arch-box .sub { color:#8b949e; font-size:0.8em; margin-top:4px; }
+.arch-arrow { display:flex; align-items:center; color:#484f58; font-size:1.5em; }
+
+/* =================== FLOW DIAGRAM =================== */
+.flow { display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:center; margin:20px 0; }
+.flow-step {
+  background:#21262d;
+  border:1px solid #30363d;
+  border-radius:8px;
+  padding:10px 16px;
+  font-size:0.9em;
+  text-align:center;
+  min-width:100px;
+}
+.flow-step.core0 { border-color:#ffa657; }
+.flow-step.core1 { border-color:#58a6ff; }
+.flow-arrow { color:#484f58; font-size:1.2em; }
+
+/* =================== TABEL =================== */
+table { width:100%; border-collapse:collapse; margin:10px 0; }
+th { background:#21262d; color:#58a6ff; text-align:left; padding:10px 14px; font-weight:600; font-size:0.9em; }
+td { padding:8px 14px; border-bottom:1px solid #21262d; font-size:0.88em; }
+tr:hover td { background:#161b22; }
+.badge {
+  display:inline-block;
+  padding:2px 8px;
+  border-radius:10px;
+  font-size:0.8em;
+  font-weight:600;
+}
+.badge-crypto { background:#1f3a2a; color:#3fb950; }
+.badge-stock { background:#2a2d1f; color:#e3b341; }
+.badge-forex { background:#1f2a3a; color:#58a6ff; }
+
+/* =================== TICKER LIJST =================== */
+.ticker-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:10px; margin:15px 0; }
+.ticker-card {
+  background:#21262d;
+  border:1px solid #30363d;
+  border-radius:8px;
+  padding:12px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.ticker-card .num { color:#484f58; font-size:0.8em; min-width:20px; }
+.ticker-card .sym { font-weight:700; }
+.ticker-card .type { font-size:0.75em; margin-left:auto; }
+
+/* =================== TIMELINE =================== */
+.timeline { position:relative; margin:20px 0 20px 30px; }
+.timeline::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; background:#30363d; }
+.timeline-item { position:relative; padding:0 0 24px 30px; }
+.timeline-item::before {
+  content:'';
+  position:absolute;
+  left:-5px;
+  top:4px;
+  width:12px;
+  height:12px;
+  border-radius:50%;
+  background:#21262d;
+  border:2px solid #58a6ff;
+}
+.timeline-item.done::before { background:#3fb950; border-color:#3fb950; }
+.timeline-item .step-title { font-weight:600; margin-bottom:4px; }
+.timeline-item .step-desc { color:#8b949e; font-size:0.88em; }
+
+/* =================== SAFETY =================== */
+.safety-box {
+  background:#1a2332;
+  border:1px solid #1f6feb;
+  border-radius:10px;
+  padding:16px 20px;
+  margin:15px 0;
+}
+.safety-box .icon-text { display:flex; align-items:flex-start; gap:10px; }
+.safety-box .icon-text .emoji { font-size:1.3em; }
+</style>
+</head>
+<body>
+
+<h1>Crypto Ticker - Firmware Plan</h1>
+<p class="subtitle">ESP32-D0WD-V3 &bull; 64x32 HUB75 LED Matrix &bull; 15 Tickers &bull; 3 Timeframes</p>
+
+<!-- =================== SECTIE 1: LED MATRIX MOCKUPS =================== -->
+<h2>1. LED Matrix Display Mockups</h2>
+
+<div class="section">
+<h3>Mode 1: Scrollend per Ticker (prijs + mini-chart)</h3>
+<p style="color:#8b949e;margin-bottom:12px;">Elke ticker wordt ~10 sec getoond, daarna slide-transitie naar de volgende</p>
+<div class="matrix-wrapper">
+  <div class="matrix-label">64 x 32 pixels - Gesimuleerd</div>
+  <canvas id="matrix1" width="640" height="320" style="width:100%;max-width:700px;border:3px solid #333;border-radius:6px;image-rendering:pixelated;background:#000;"></canvas>
+</div>
+</div>
+
+<div class="section">
+<h3>Mode 2: Fullscreen Chart (periodiek, bv. elke 5 tickers)</h3>
+<p style="color:#8b949e;margin-bottom:12px;">Groter chart met meer detail, 5 sec zichtbaar</p>
+<div class="matrix-wrapper">
+  <canvas id="matrix2" width="640" height="320" style="width:100%;max-width:700px;border:3px solid #333;border-radius:6px;image-rendering:pixelated;background:#000;"></canvas>
+</div>
+</div>
+
+<div class="section">
+<h3>Mode 1 Variant: Rode ticker (prijs gedaald)</h3>
+<div class="matrix-wrapper">
+  <canvas id="matrix3" width="640" height="320" style="width:100%;max-width:700px;border:3px solid #333;border-radius:6px;image-rendering:pixelated;background:#000;"></canvas>
+</div>
+</div>
+
+<!-- =================== SECTIE 2: ARCHITECTUUR =================== -->
+<h2>2. Systeem Architectuur</h2>
+
+<div class="section">
+<div class="arch-diagram">
+  <div class="arch-box green">
+    <div class="icon">&#x1F4B0;</div>
+    <div class="label">CoinGecko API</div>
+    <div class="sub">Crypto prijzen<br>Gratis, 30/min<br>Batch: alle coins in 1 call</div>
+  </div>
+  <div class="arch-arrow">&rarr;</div>
+  <div class="arch-box orange" style="min-width:220px;">
+    <div class="icon">&#x1F4E1;</div>
+    <div class="label">ESP32 Core 0</div>
+    <div class="sub">WiFi + API calls<br>Data fetching<br>Web server</div>
+  </div>
+  <div class="arch-arrow">&rarr;</div>
+  <div class="arch-box highlight" style="min-width:220px;">
+    <div class="icon">&#x1F4FA;</div>
+    <div class="label">ESP32 Core 1</div>
+    <div class="sub">HUB75 DMA Display<br>Rendering + animatie<br>Sparkline charts</div>
+  </div>
+  <div class="arch-arrow">&rarr;</div>
+  <div class="arch-box" style="border-color:#f85149;">
+    <div class="icon">&#x1F7E9;</div>
+    <div class="label">64x32 LED Matrix</div>
+    <div class="sub">HUB75 protocol<br>RGB kleuren<br>~60 FPS refresh</div>
+  </div>
+</div>
+<div class="arch-diagram" style="margin-top:0;">
+  <div class="arch-box green">
+    <div class="icon">&#x1F4C8;</div>
+    <div class="label">Twelve Data API</div>
+    <div class="sub">Stocks + Forex<br>Gratis, 800/dag<br>Round-robin per ticker</div>
+  </div>
+  <div class="arch-arrow">&rarr;</div>
+  <div class="arch-box orange" style="min-width:220px;opacity:0;pointer-events:none;">
+    <div class="label">&nbsp;</div>
+  </div>
+  <div style="width:20px"></div>
+  <div class="arch-box" style="border-color:#a371f7;">
+    <div class="icon">&#x1F4F1;</div>
+    <div class="label">Web Browser</div>
+    <div class="sub">Config UI<br>http://192.168.2.21<br>Ticker beheer + OTA</div>
+  </div>
+  <div class="arch-arrow">&larr;</div>
+  <div class="arch-box" style="border-color:#a371f7;">
+    <div class="icon">&#x1F4BE;</div>
+    <div class="label">LittleFS</div>
+    <div class="sub">config.json<br>Web UI bestanden<br>640 KB</div>
+  </div>
+</div>
+</div>
+
+<!-- =================== SECTIE 3: DUAL CORE FLOW =================== -->
+<h2>3. Dual-Core Taak Verdeling</h2>
+
+<div class="section">
+<h3 style="color:#ffa657;">Core 0 - Data & Netwerk</h3>
+<div class="flow">
+  <div class="flow-step core0">WiFi<br>Connect</div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step core0">Fetch Crypto<br><small>CoinGecko batch</small></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step core0">Fetch Stock<br><small>Twelve Data</small></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step core0">Parse JSON<br><small>ArduinoJson</small></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step core0">Downsample<br><small>float &rarr; uint8[64]</small></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step core0">Web Server<br><small>Config + OTA</small></div>
+</div>
+
+<h3 style="color:#58a6ff;margin-top:20px;">Core 1 - Display & Animatie</h3>
+<div class="flow">
+  <div class="flow-step core1">Read<br>TickerData</div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step core1">Render Tekst<br><small>Picopixel 3x5</small></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step core1">Draw Chart<br><small>Sparkline</small></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step core1">DMA Output<br><small>HUB75 panel</small></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step core1">Wait Timer<br><small>10 sec/ticker</small></div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step core1">Slide<br>Transitie</div>
+</div>
+</div>
+
+<!-- =================== SECTIE 4: 15 TICKERS =================== -->
+<h2>4. 15 Ticker Slots (voorbeeld)</h2>
+
+<div class="section">
+<div class="ticker-grid">
+  <div class="ticker-card"><span class="num">1</span><span class="sym">BTC</span><span class="type badge badge-crypto">Crypto</span></div>
+  <div class="ticker-card"><span class="num">2</span><span class="sym">ETH</span><span class="type badge badge-crypto">Crypto</span></div>
+  <div class="ticker-card"><span class="num">3</span><span class="sym">SOL</span><span class="type badge badge-crypto">Crypto</span></div>
+  <div class="ticker-card"><span class="num">4</span><span class="sym">XMR</span><span class="type badge badge-crypto">Crypto</span></div>
+  <div class="ticker-card"><span class="num">5</span><span class="sym">ADA</span><span class="type badge badge-crypto">Crypto</span></div>
+  <div class="ticker-card"><span class="num">6</span><span class="sym">DOGE</span><span class="type badge badge-crypto">Crypto</span></div>
+  <div class="ticker-card"><span class="num">7</span><span class="sym">XRP</span><span class="type badge badge-crypto">Crypto</span></div>
+  <div class="ticker-card"><span class="num">8</span><span class="sym">DOT</span><span class="type badge badge-crypto">Crypto</span></div>
+  <div class="ticker-card"><span class="num">9</span><span class="sym">LINK</span><span class="type badge badge-crypto">Crypto</span></div>
+  <div class="ticker-card"><span class="num">10</span><span class="sym">AAPL</span><span class="type badge badge-stock">Stock</span></div>
+  <div class="ticker-card"><span class="num">11</span><span class="sym">TSLA</span><span class="type badge badge-stock">Stock</span></div>
+  <div class="ticker-card"><span class="num">12</span><span class="sym">NVDA</span><span class="type badge badge-stock">Stock</span></div>
+  <div class="ticker-card"><span class="num">13</span><span class="sym">MSFT</span><span class="type badge badge-stock">Stock</span></div>
+  <div class="ticker-card"><span class="num">14</span><span class="sym">EUR/USD</span><span class="type badge badge-forex">Forex</span></div>
+  <div class="ticker-card"><span class="num">15</span><span class="sym">GBP/EUR</span><span class="type badge badge-forex">Forex</span></div>
+</div>
+<p style="color:#8b949e;font-size:0.85em;margin-top:10px;">Volledig configureerbaar via de web interface - verander tickers, types, volgorde</p>
+</div>
+
+<!-- =================== SECTIE 5: API RATE LIMITS =================== -->
+<h2>5. API Strategie & Rate Limits</h2>
+
+<div class="section">
+<table>
+  <thead>
+    <tr><th>API</th><th>Asset Types</th><th>Gratis Limiet</th><th>Ons Gebruik</th><th>Headroom</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>CoinGecko</strong></td>
+      <td><span class="badge badge-crypto">Crypto</span></td>
+      <td>30 calls/min</td>
+      <td>~1 call/min (batch)</td>
+      <td style="color:#3fb950;">97% over</td>
+    </tr>
+    <tr>
+      <td><strong>Twelve Data</strong></td>
+      <td><span class="badge badge-stock">Stocks</span> <span class="badge badge-forex">Forex</span></td>
+      <td>800 calls/dag</td>
+      <td>~200 calls/dag</td>
+      <td style="color:#3fb950;">75% over</td>
+    </tr>
+  </tbody>
+</table>
+
+<table style="margin-top:20px;">
+  <thead>
+    <tr><th>Data Type</th><th>Refresh Interval</th><th>Reden</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Huidige prijzen (crypto)</td><td>Elke 60 sec</td><td>Batch call, lage cost</td></tr>
+    <tr><td>Huidige prijzen (stocks)</td><td>Elke 8 sec (round-robin)</td><td>1 ticker per call</td></tr>
+    <tr><td>24h sparkline</td><td>Elke 10 min</td><td>Data wijzigt langzaam</td></tr>
+    <tr><td>7d chart</td><td>Elke 30 min</td><td>Uurlijkse datapunten</td></tr>
+    <tr><td>30d chart</td><td>Elke 60 min</td><td>Dagelijkse datapunten</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- =================== SECTIE 6: GEHEUGEN =================== -->
+<h2>6. Geheugen Budget (ESP32 ~200KB RAM)</h2>
+
+<div class="section">
+<div id="memchart" style="display:flex;align-items:end;gap:6px;height:200px;padding:20px 0;">
+</div>
+<table style="margin-top:15px;">
+  <thead><tr><th>Component</th><th>RAM</th><th>%</th></tr></thead>
+  <tbody>
+    <tr><td>WiFi stack</td><td>40 KB</td><td>20%</td></tr>
+    <tr><td>HUB75 DMA buffer</td><td>16 KB</td><td>8%</td></tr>
+    <tr><td>HTTP + JSON buffers</td><td>16 KB</td><td>8%</td></tr>
+    <tr><td>Web server</td><td>10 KB</td><td>5%</td></tr>
+    <tr><td>15 tickers (3 sparklines elk)</td><td>3.6 KB</td><td>2%</td></tr>
+    <tr><td>Config + stack</td><td>21.4 KB</td><td>11%</td></tr>
+    <tr style="color:#3fb950;font-weight:600;"><td>Vrij (headroom)</td><td>93 KB</td><td style="color:#3fb950;">46%</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- =================== SECTIE 7: IMPLEMENTATIE STAPPEN =================== -->
+<h2>7. Implementatie Stappen</h2>
+
+<div class="section">
+<div class="timeline">
+  <div class="timeline-item done">
+    <div class="step-title">Stap 0: Voorbereiding (DONE)</div>
+    <div class="step-desc">ESP32 geidentificeerd, esptool geinstalleerd, 4MB flash backup gemaakt (firmware_backup.bin)</div>
+  </div>
+  <div class="timeline-item">
+    <div class="step-title">Stap 1: Project Setup</div>
+    <div class="step-desc">PlatformIO project, partitie tabel, pin mapping, HUB75 display test met kleuren</div>
+  </div>
+  <div class="timeline-item">
+    <div class="step-title">Stap 2: WiFi + Web Server</div>
+    <div class="step-desc">WiFiManager (captive portal), AsyncWebServer, LittleFS config, OTA update endpoint</div>
+  </div>
+  <div class="timeline-item">
+    <div class="step-title">Stap 3: API Client + Data</div>
+    <div class="step-desc">CoinGecko batch fetch, Twelve Data round-robin, sparkline downsampling, rate limiting</div>
+  </div>
+  <div class="timeline-item">
+    <div class="step-title">Stap 4: Display Rendering</div>
+    <div class="step-desc">Scrollend ticker mode, fullscreen chart mode, slide-transitie, groen/rood kleuren</div>
+  </div>
+  <div class="timeline-item">
+    <div class="step-title">Stap 5: Web Config UI</div>
+    <div class="step-desc">15 ticker slots beheren, brightness/speed sliders, API keys, timeframe selectie</div>
+  </div>
+  <div class="timeline-item">
+    <div class="step-title">Stap 6: Polish + Test</div>
+    <div class="step-desc">Error handling, WiFi reconnect, 24h stress test, geheugen profiling, OTA test</div>
+  </div>
+</div>
+</div>
+
+<!-- =================== SECTIE 8: VEILIGHEID =================== -->
+<h2>8. Veiligheidsnet</h2>
+
+<div class="section">
+<div class="safety-box">
+  <div class="icon-text"><span class="emoji">&#x1F4BE;</span><div><strong>Volledige backup</strong><br>firmware_backup.bin (4MB) met MD5 checksum. Kan altijd teruggezet worden.</div></div>
+</div>
+<div class="safety-box">
+  <div class="icon-text"><span class="emoji">&#x1F504;</span><div><strong>OTA met rollback</strong><br>ESP32 dual-partition: als nieuwe firmware faalt, boot automatisch de vorige.</div></div>
+</div>
+<div class="safety-box">
+  <div class="icon-text"><span class="emoji">&#x1F50C;</span><div><strong>USB fallback</strong><br>Board is via USB-C verbonden. Kan altijd via esptool direct flashen als noodoplossing.</div></div>
+</div>
+<div class="safety-box">
+  <div class="icon-text"><span class="emoji">&#x1F9EA;</span><div><strong>Stap voor stap</strong><br>Elke stap wordt eerst getest voordat we doorgaan. Display test, dan WiFi, dan API, etc.</div></div>
+</div>
+</div>
+
+<!-- =================== CANVAS RENDERING =================== -->
+<script>
+// ============ HELPER FUNCTIES ============
+function drawPixel(ctx, x, y, r, g, b, scale=10) {
+  ctx.fillStyle = `rgb(${r},${g},${b})`;
+  ctx.fillRect(x*scale, y*scale, scale-1, scale-1);
+}
+
+function drawText3x5(ctx, text, startX, startY, r, g, b, scale=10) {
+  // Simpele 3x5 pixel font (subset)
+  const font = {
+    'A':[[1,0],[0,1],[2,1],[0,2],[1,2],[2,2],[0,3],[2,3],[0,4],[2,4]],
+    'B':[[0,0],[1,0],[0,1],[2,1],[0,2],[1,2],[0,3],[2,3],[0,4],[1,4]],
+    'C':[[1,0],[2,0],[0,1],[0,2],[0,3],[1,4],[2,4]],
+    'D':[[0,0],[1,0],[0,1],[2,1],[0,2],[2,2],[0,3],[2,3],[0,4],[1,4]],
+    'E':[[0,0],[1,0],[2,0],[0,1],[0,2],[1,2],[0,3],[0,4],[1,4],[2,4]],
+    'F':[[0,0],[1,0],[2,0],[0,1],[0,2],[1,2],[0,3],[0,4]],
+    'G':[[1,0],[2,0],[0,1],[0,2],[2,2],[0,3],[2,3],[1,4],[2,4]],
+    'H':[[0,0],[2,0],[0,1],[2,1],[0,2],[1,2],[2,2],[0,3],[2,3],[0,4],[2,4]],
+    'I':[[0,0],[1,0],[2,0],[1,1],[1,2],[1,3],[0,4],[1,4],[2,4]],
+    'K':[[0,0],[2,0],[0,1],[1,1],[0,2],[1,2],[0,3],[1,3],[0,4],[2,4]],
+    'L':[[0,0],[0,1],[0,2],[0,3],[0,4],[1,4],[2,4]],
+    'M':[[0,0],[2,0],[0,1],[1,1],[2,1],[0,2],[2,2],[0,3],[2,3],[0,4],[2,4]],
+    'N':[[0,0],[2,0],[0,1],[1,1],[2,1],[0,2],[2,2],[0,3],[2,3],[0,4],[2,4]],
+    'O':[[1,0],[0,1],[2,1],[0,2],[2,2],[0,3],[2,3],[1,4]],
+    'P':[[0,0],[1,0],[0,1],[2,1],[0,2],[1,2],[0,3],[0,4]],
+    'R':[[0,0],[1,0],[0,1],[2,1],[0,2],[1,2],[0,3],[2,3],[0,4],[2,4]],
+    'S':[[1,0],[2,0],[0,1],[1,2],[2,3],[0,4],[1,4]],
+    'T':[[0,0],[1,0],[2,0],[1,1],[1,2],[1,3],[1,4]],
+    'U':[[0,0],[2,0],[0,1],[2,1],[0,2],[2,2],[0,3],[2,3],[1,4]],
+    'V':[[0,0],[2,0],[0,1],[2,1],[0,2],[2,2],[1,3],[1,4]],
+    'X':[[0,0],[2,0],[0,1],[2,1],[1,2],[0,3],[2,3],[0,4],[2,4]],
+    'Y':[[0,0],[2,0],[0,1],[2,1],[1,2],[1,3],[1,4]],
+    '$':[[1,0],[2,0],[0,1],[1,1],[1,2],[2,3],[0,4],[1,4]],
+    '0':[[1,0],[0,1],[2,1],[0,2],[2,2],[0,3],[2,3],[1,4]],
+    '1':[[1,0],[0,1],[1,1],[1,2],[1,3],[0,4],[1,4],[2,4]],
+    '2':[[1,0],[0,1],[2,1],[2,2],[1,3],[0,4],[1,4],[2,4]],
+    '3':[[0,0],[1,0],[2,1],[1,2],[2,3],[0,4],[1,4]],
+    '4':[[0,0],[2,0],[0,1],[2,1],[0,2],[1,2],[2,2],[2,3],[2,4]],
+    '5':[[0,0],[1,0],[2,0],[0,1],[0,2],[1,2],[2,3],[0,4],[1,4]],
+    '6':[[1,0],[2,0],[0,1],[0,2],[1,2],[0,3],[2,3],[1,4]],
+    '7':[[0,0],[1,0],[2,0],[2,1],[1,2],[1,3],[1,4]],
+    '8':[[1,0],[0,1],[2,1],[1,2],[0,3],[2,3],[1,4]],
+    '9':[[1,0],[0,1],[2,1],[1,2],[2,2],[2,3],[1,4]],
+    ',':[[1,4]],
+    '.':[[0,4]],
+    '+':[[1,1],[0,2],[1,2],[2,2],[1,3]],
+    '-':[[0,2],[1,2],[2,2]],
+    '%':[[0,0],[2,1],[1,2],[0,3],[2,4]],
+    '/':[[2,0],[2,1],[1,2],[0,3],[0,4]],
+    ' ':[],
+    ':':[[1,1],[1,3]],
+  };
+
+  let cx = startX;
+  for (let ch of text) {
+    const pixels = font[ch.toUpperCase()] || font[ch];
+    if (pixels) {
+      for (const [px, py] of pixels) {
+        drawPixel(ctx, cx+px, startY+py, r, g, b, scale);
+      }
+    }
+    cx += 4; // char width + spacing
+  }
+}
+
+function drawSparkline(ctx, data, x, y, w, h, r, g, b, fill=true, scale=10) {
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+
+  for (let i = 0; i < data.length && i < w; i++) {
+    const barH = Math.round(((data[i] - min) / range) * (h - 1));
+    const py = y + h - 1 - barH;
+    // Line pixel
+    drawPixel(ctx, x + i, py, r, g, b, scale);
+    // Fill below
+    if (fill) {
+      for (let fy = py + 1; fy < y + h; fy++) {
+        drawPixel(ctx, x + i, fy, Math.floor(r*0.2), Math.floor(g*0.2), Math.floor(b*0.2), scale);
+      }
+    }
+  }
+}
+
+// ============ MATRIX 1: SCROLLEND TICKER (BTC - GROEN) ============
+(function() {
+  const c = document.getElementById('matrix1');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, 640, 320);
+
+  // BTC prijs
+  drawText3x5(ctx, 'BTC', 1, 1, 0, 200, 255);
+  drawText3x5(ctx, '$97,234', 17, 1, 255, 255, 255);
+
+  // Separator
+  for (let x = 0; x < 64; x++) drawPixel(ctx, x, 7, 40, 40, 60);
+
+  // Change %
+  drawText3x5(ctx, '+2.4%', 1, 8, 0, 255, 100);
+  drawText3x5(ctx, '24H', 25, 8, 100, 100, 120);
+
+  // Timeframe tabs rechts
+  drawText3x5(ctx, '7D', 49, 8, 80, 80, 100);
+  drawText3x5(ctx, '30D', 56, 8, 80, 80, 100);
+
+  // Sparkline (fake BTC 24h data - uptrend)
+  const btcData = [42,40,38,37,36,35,36,38,40,39,38,37,36,35,37,39,41,43,44,45,44,43,44,46,48,50,51,50,49,48,50,52,54,55,56,55,54,53,55,57,58,60,61,62,60,59,58,60,62,63,65,66,67,68,67,66,68,70,72,73,74,75,76,78];
+  drawSparkline(ctx, btcData, 0, 14, 64, 18, 0, 220, 100, true);
+})();
+
+// ============ MATRIX 2: FULLSCREEN CHART (ETH 7D) ============
+(function() {
+  const c = document.getElementById('matrix2');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, 640, 320);
+
+  // Header
+  drawText3x5(ctx, 'ETH', 1, 1, 150, 130, 255);
+  drawText3x5(ctx, '7D', 17, 1, 150, 130, 200);
+
+  // Prijs
+  drawText3x5(ctx, '$3,421', 30, 1, 255, 255, 255);
+
+  // Change
+  drawText3x5(ctx, '+5.2%', 1, 7, 0, 255, 100);
+
+  // Grote sparkline (64 breed x 24 hoog)
+  const ethData = [50,48,45,43,42,40,42,44,43,41,40,38,36,35,37,39,41,43,45,47,46,44,43,45,48,50,52,54,53,51,50,52,55,57,59,60,58,56,55,57,60,62,64,66,65,63,62,64,67,69,71,73,72,70,69,71,74,76,78,80,79,82,85,88];
+  drawSparkline(ctx, ethData, 0, 13, 64, 19, 150, 130, 255, true);
+})();
+
+// ============ MATRIX 3: RODE TICKER (TSLA - DALING) ============
+(function() {
+  const c = document.getElementById('matrix3');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, 640, 320);
+
+  // TSLA prijs
+  drawText3x5(ctx, 'TSLA', 1, 1, 255, 200, 50);
+  drawText3x5(ctx, '$189', 21, 1, 255, 255, 255);
+
+  // Separator
+  for (let x = 0; x < 64; x++) drawPixel(ctx, x, 7, 40, 40, 60);
+
+  // Change %
+  drawText3x5(ctx, '-3.1%', 1, 8, 255, 60, 60);
+  drawText3x5(ctx, '24H', 25, 8, 100, 100, 120);
+
+  // Sparkline (downtrend)
+  const tslaData = [80,82,81,79,78,80,79,77,75,74,73,75,74,72,70,69,68,70,69,67,65,64,63,65,64,62,60,59,58,60,59,57,55,54,53,55,54,52,50,49,48,50,49,47,45,44,43,45,44,42,40,39,38,40,39,37,35,34,36,35,33,32,30,28];
+  drawSparkline(ctx, tslaData, 0, 14, 64, 18, 255, 50, 50, true);
+})();
+
+// ============ GEHEUGEN BAR CHART ============
+(function() {
+  const container = document.getElementById('memchart');
+  const items = [
+    { label:'WiFi', kb:40, color:'#f85149' },
+    { label:'HUB75', kb:16, color:'#58a6ff' },
+    { label:'HTTP/JSON', kb:16, color:'#ffa657' },
+    { label:'WebSrv', kb:10, color:'#a371f7' },
+    { label:'Tickers', kb:3.6, color:'#3fb950' },
+    { label:'Config', kb:21.4, color:'#e3b341' },
+    { label:'VRIJ', kb:93, color:'#238636' },
+  ];
+  const maxKb = 100;
+  items.forEach(item => {
+    const bar = document.createElement('div');
+    bar.style.cssText = `flex:1;text-align:center;`;
+    const h = Math.max(20, (item.kb / maxKb) * 170);
+    bar.innerHTML = `
+      <div style="font-size:0.75em;color:#8b949e;margin-bottom:4px;">${item.kb}KB</div>
+      <div style="height:${h}px;background:${item.color};border-radius:4px 4px 0 0;margin:0 2px;opacity:0.8;"></div>
+      <div style="font-size:0.7em;color:#e6edf3;margin-top:6px;white-space:nowrap;">${item.label}</div>
+    `;
+    container.appendChild(bar);
+  });
+})();
+</script>
+
+</body>
+</html>

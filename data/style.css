@@ -1,0 +1,269 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    padding: 20px;
+    font-size: 14px;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #30363d;
+}
+
+h1 {
+    font-size: 24px;
+    font-weight: 600;
+}
+
+h2 {
+    font-size: 18px;
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.version {
+    color: #7d8590;
+    font-size: 12px;
+}
+
+.status-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    padding: 15px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.status-item {
+    font-size: 13px;
+}
+
+.label {
+    color: #7d8590;
+    margin-right: 5px;
+}
+
+.card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.count {
+    color: #7d8590;
+    font-size: 14px;
+    font-weight: 400;
+}
+
+.ticker-item {
+    display: grid;
+    grid-template-columns: 40px 1fr 1fr 100px 80px 60px 100px 40px;
+    gap: 8px;
+    align-items: center;
+    padding: 10px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.ticker-slot {
+    font-weight: 600;
+    color: #7d8590;
+}
+
+.ticker-price {
+    font-size: 12px;
+    color: #3fb950;
+    text-align: right;
+}
+
+.ticker-price.invalid {
+    color: #f85149;
+}
+
+.type-badge {
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.type-crypto { background: #238636; color: #fff; }
+.type-stock { background: #bb8009; color: #fff; }
+.type-forex { background: #0969da; color: #fff; }
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+    width: 100%;
+    padding: 8px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    color: #e6edf3;
+    font-size: 14px;
+}
+
+input[type="range"] {
+    width: 100%;
+    height: 6px;
+    background: #30363d;
+    outline: none;
+    border-radius: 3px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #58a6ff;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+input[type="file"] {
+    margin-bottom: 10px;
+}
+
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.btn:hover {
+    opacity: 0.8;
+}
+
+.btn-primary {
+    background: #58a6ff;
+    color: #fff;
+}
+
+.btn-success {
+    background: #3fb950;
+    color: #fff;
+}
+
+.btn-danger {
+    background: #f85149;
+    color: #fff;
+}
+
+.btn-secondary {
+    background: #30363d;
+    color: #e6edf3;
+}
+
+.btn-remove {
+    background: transparent;
+    color: #f85149;
+    padding: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    border: none;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.message {
+    padding: 12px;
+    border-radius: 4px;
+    margin-top: 10px;
+    display: none;
+}
+
+.message.success {
+    background: #238636;
+    border: 1px solid #3fb950;
+    display: block;
+}
+
+.message.error {
+    background: #8e1e19;
+    border: 1px solid #f85149;
+    display: block;
+}
+
+.progress {
+    width: 100%;
+    height: 24px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+.progress-bar {
+    height: 100%;
+    background: #58a6ff;
+    transition: width 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .ticker-item {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+    }
+}

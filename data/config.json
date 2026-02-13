@@ -1,0 +1,14 @@
+{
+  "brightness": 128,
+  "baseTimeMs": 8000,
+  "numTickers": 5,
+  "twelveDataApiKey": "",
+  "coinGeckoApiKey": "",
+  "tickers": [
+    {"symbol": "BTC", "apiId": "bitcoin", "type": 0, "timeMultiplier": 1.0, "enabled": true},
+    {"symbol": "ETH", "apiId": "ethereum", "type": 0, "timeMultiplier": 1.0, "enabled": true},
+    {"symbol": "SOL", "apiId": "solana", "type": 0, "timeMultiplier": 1.0, "enabled": true},
+    {"symbol": "XMR", "apiId": "monero", "type": 0, "timeMultiplier": 1.0, "enabled": true},
+    {"symbol": "DOGE", "apiId": "dogecoin", "type": 0, "timeMultiplier": 1.0, "enabled": true}
+  ]
+}

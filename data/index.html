@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Ticker Config</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Crypto Ticker Config</h1>
+            <span class="version" id="version">v0.0.0</span>
+        </header>
+
+        <div class="status-bar" id="statusBar">
+            <div class="status-item">
+                <span class="label">WiFi:</span>
+                <span id="ssid">--</span>
+            </div>
+            <div class="status-item">
+                <span class="label">IP:</span>
+                <span id="ip">--</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Signal:</span>
+                <span id="rssi">--</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Heap:</span>
+                <span id="heap">--</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Uptime:</span>
+                <span id="uptime">--</span>
+            </div>
+        </div>
+
+        <section class="card">
+            <h2>Tickers <span class="count" id="tickerCount">0/15</span></h2>
+            <div id="tickerList"></div>
+            <button class="btn btn-secondary" onclick="addTicker()" id="addBtn">+ Add Ticker</button>
+        </section>
+
+        <section class="card">
+            <h2>Settings</h2>
+            <div class="form-group">
+                <label>Brightness: <span id="brightnessVal">128</span></label>
+                <input type="range" id="brightness" min="0" max="255" value="128" oninput="document.getElementById('brightnessVal').textContent=this.value">
+            </div>
+            <div class="form-group">
+                <label>Base Display Time: <span id="baseTimeVal">8</span>s</label>
+                <input type="range" id="baseTime" min="1" max="30" value="8" oninput="document.getElementById('baseTimeVal').textContent=this.value">
+            </div>
+            <div class="form-group">
+                <label>CoinGecko API Key (optional)</label>
+                <input type="text" id="coinGeckoKey" placeholder="Leave empty for free tier">
+            </div>
+            <div class="form-group">
+                <label>Twelve Data API Key</label>
+                <input type="text" id="twelveDataKey" placeholder="Required for stocks/forex">
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Firmware Update</h2>
+            <div class="form-group">
+                <input type="file" id="firmwareFile" accept=".bin">
+                <button class="btn btn-primary" onclick="uploadFirmware()">Upload Firmware</button>
+            </div>
+            <div class="progress" id="uploadProgress" style="display:none;">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+        </section>
+
+        <div class="actions">
+            <button class="btn btn-success" onclick="saveConfig()">Save Configuration</button>
+            <button class="btn btn-danger" onclick="restartDevice()">Restart Device</button>
+        </div>
+
+        <div class="message" id="message"></div>
+    </div>
+    <script src="/app.js"></script>
+</body>
+</html>

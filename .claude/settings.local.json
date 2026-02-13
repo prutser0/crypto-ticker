@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(nmap:*)",
+      "Bash(curl:*)",
+      "Bash(gemini -p \"Search GitHub for ESP32 crypto ticker projects that use LED matrix display and AutoConnect library. Look for projects with web interface endpoints like /coin, /update, /config. Include the exact GitHub repository URLs in your response.\")",
+      "Bash(system_profiler:*)",
+      "Bash(ls:*)",
+      "Bash(ioreg:*)",
+      "Bash(pip3 show:*)",
+      "Bash(pip3 install:*)",
+      "Bash(esptool.py:*)",
+      "Bash(esptool:*)",
+      "Bash(md5:*)",
+      "Bash(gh search:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh api:*)",
+      "Bash(python3:*)",
+      "Bash(open:*)",
+      "Bash(pio run:*)",
+      "Bash(platformio run:*)"
+    ]
+  }
+}
