@@ -1,2 +1,3 @@
 .pio
 firmware_backup.bin
+data/secrets.json

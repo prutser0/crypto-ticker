@@ -225,4 +225,23 @@ void loadConfig() {
 
     Serial.printf("Config loaded: %d tickers, brightness %d\n",
                   appConfig.numTickers, appConfig.brightness);
+
+    // Load API keys from secrets.json (gitignored, separate from config)
+    File sf = LittleFS.open("/secrets.json", "r");
+    if (sf) {
+        JsonDocument secrets;
+        if (!deserializeJson(secrets, sf)) {
+            if (!secrets["twelveDataApiKey"].isNull() && strlen(secrets["twelveDataApiKey"]) > 0) {
+                strlcpy(appConfig.twelveDataApiKey, secrets["twelveDataApiKey"], sizeof(appConfig.twelveDataApiKey));
+            }
+            if (!secrets["cmcApiKey"].isNull() && strlen(secrets["cmcApiKey"]) > 0) {
+                strlcpy(appConfig.cmcApiKey, secrets["cmcApiKey"], sizeof(appConfig.cmcApiKey));
+            }
+            if (!secrets["coinGeckoApiKey"].isNull() && strlen(secrets["coinGeckoApiKey"]) > 0) {
+                strlcpy(appConfig.coinGeckoApiKey, secrets["coinGeckoApiKey"], sizeof(appConfig.coinGeckoApiKey));
+            }
+            Serial.println("Secrets loaded from secrets.json");
+        }
+        sf.close();
+    }
 }
