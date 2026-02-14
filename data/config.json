@@ -1,14 +1,21 @@
 {
   "brightness": 128,
   "baseTimeMs": 8000,
-  "numTickers": 5,
+  "numTickers": 11,
   "twelveDataApiKey": "",
   "coinGeckoApiKey": "",
+  "cmcApiKey": "",
   "tickers": [
     {"symbol": "BTC", "apiId": "bitcoin", "type": 0, "timeMultiplier": 1.0, "enabled": true},
     {"symbol": "ETH", "apiId": "ethereum", "type": 0, "timeMultiplier": 1.0, "enabled": true},
     {"symbol": "SOL", "apiId": "solana", "type": 0, "timeMultiplier": 1.0, "enabled": true},
+    {"symbol": "LTC", "apiId": "litecoin", "type": 0, "timeMultiplier": 1.0, "enabled": true},
+    {"symbol": "DOGE", "apiId": "dogecoin", "type": 0, "timeMultiplier": 1.0, "enabled": true},
     {"symbol": "XMR", "apiId": "monero", "type": 0, "timeMultiplier": 1.0, "enabled": true},
-    {"symbol": "DOGE", "apiId": "dogecoin", "type": 0, "timeMultiplier": 1.0, "enabled": true}
+    {"symbol": "MSTR", "apiId": "MSTR", "type": 1, "timeMultiplier": 1.0, "enabled": true},
+    {"symbol": "NDX", "apiId": "QQQ", "type": 1, "timeMultiplier": 1.0, "enabled": true},
+    {"symbol": "SPX", "apiId": "SPY", "type": 1, "timeMultiplier": 1.0, "enabled": true},
+    {"symbol": "RUT", "apiId": "IWM", "type": 1, "timeMultiplier": 1.0, "enabled": true},
+    {"symbol": "EUR", "apiId": "EUR/USD", "type": 2, "timeMultiplier": 1.0, "enabled": true}
   ]
 }

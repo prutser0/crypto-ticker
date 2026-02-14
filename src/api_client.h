@@ -32,3 +32,11 @@ bool fetchStockChart(const char* symbol, const char* apiKey, const char* interva
 
 // Set optional CoinGecko demo API key (adds x_cg_demo_api_key param)
 void setCoinGeckoApiKey(const char* key);
+
+// Set CoinMarketCap API key
+void setCMCApiKey(const char* key);
+
+// Fetch prices + per-timeframe change% from CoinMarketCap
+// slugs: comma-separated slugs (e.g. "bitcoin,ethereum,solana")
+// Returns number of tickers successfully updated
+int fetchCMCPrices(const char* slugs, TickerData* tickerData, int numTickers, const TickerConfig* configs);

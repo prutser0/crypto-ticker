@@ -13,11 +13,10 @@ void setDisplayBrightness(uint8_t brightness);
 MatrixPanel_I2S_DMA* getDisplay();
 
 // Render a ticker screen: symbol + price + change% + timeframe label + sparkline chart
-// Layout on 64x32:
-//   Row 0-5:   Symbol + Price (e.g. "BTC $97,234")
-//   Row 6:     Separator line
-//   Row 7-9:   Change% + timeframe label (e.g. "+2.4% 24H")
-//   Row 10-31: Sparkline chart (64 wide x 22 tall)
+// Layout on 64x32 (5x7 font, 6px advance):
+//   Row 0-6:   Symbol (left) + Price (right)
+//   Row 8-14:  Change% (left, tight) + Timeframe (right)
+//   Row 16-31: Sparkline chart (64 wide x 16 tall)
 void renderTickerScreen(const TickerData& ticker, ChartTimeframe timeframe);
 
 // Render a "loading" screen

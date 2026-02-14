@@ -56,6 +56,9 @@ void setup() {
     if (strlen(appConfig.coinGeckoApiKey) > 0) {
         setCoinGeckoApiKey(appConfig.coinGeckoApiKey);
     }
+    if (strlen(appConfig.cmcApiKey) > 0) {
+        setCMCApiKey(appConfig.cmcApiKey);
+    }
 
     // Initialize data manager
     initDataManager(&appConfig, tickerData);
@@ -81,7 +84,8 @@ void setup() {
         0               // Core ID (0)
     );
 
-    Serial.println("Setup complete");
+    Serial.printf("Setup complete - Free heap: %d bytes, largest block: %d bytes\n",
+                  ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 
     // Force initial data refresh
     forceRefresh();
@@ -89,6 +93,7 @@ void setup() {
 
 void loop() {
     // Main display loop runs on Core 1
+    // Fixed cycle: ticker1 24H > 7D > 30D > 90D > ticker2 24H > 7D > ...
     bool anyEnabled = false;
 
     for (int i = 0; i < appConfig.numTickers; i++) {
@@ -98,19 +103,16 @@ void loop() {
 
         anyEnabled = true;
 
-        // Display each timeframe for this ticker
+        // Thread-safe copy of ticker data
+        TickerData localTicker;
+        if (xSemaphoreTake(dataMutex, portMAX_DELAY) == pdTRUE) {
+            localTicker = tickerData[i];
+            xSemaphoreGive(dataMutex);
+        }
+
+        // Always show all 4 timeframes in order
         for (int tf = 0; tf < 4; tf++) {
-            // Thread-safe copy of ticker data
-            TickerData localTicker;
-            if (xSemaphoreTake(dataMutex, portMAX_DELAY) == pdTRUE) {
-                localTicker = tickerData[i];
-                xSemaphoreGive(dataMutex);
-            }
-
-            // Render this timeframe
             renderTickerScreen(localTicker, (ChartTimeframe)tf);
-
-            // Wait before next screen
             delay(appConfig.baseTimeMs * appConfig.tickers[i].timeMultiplier);
         }
     }
@@ -139,6 +141,9 @@ void fetchTask(void* param) {
             // Update API keys if changed
             if (strlen(appConfig.coinGeckoApiKey) > 0) {
                 setCoinGeckoApiKey(appConfig.coinGeckoApiKey);
+            }
+            if (strlen(appConfig.cmcApiKey) > 0) {
+                setCMCApiKey(appConfig.cmcApiKey);
             }
 
             // Force refresh with new config
@@ -193,6 +198,10 @@ void loadConfig() {
     strlcpy(appConfig.coinGeckoApiKey,
             doc["coinGeckoApiKey"] | "",
             sizeof(appConfig.coinGeckoApiKey));
+
+    strlcpy(appConfig.cmcApiKey,
+            doc["cmcApiKey"] | "",
+            sizeof(appConfig.cmcApiKey));
 
     if (!doc["tickers"].isNull()) {
         JsonArray tickers = doc["tickers"];

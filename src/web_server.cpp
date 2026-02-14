@@ -17,6 +17,7 @@ void saveConfig(AppConfig* config) {
     doc["numTickers"] = config->numTickers;
     doc["twelveDataApiKey"] = config->twelveDataApiKey;
     doc["coinGeckoApiKey"] = config->coinGeckoApiKey;
+    doc["cmcApiKey"] = config->cmcApiKey;
 
     JsonArray tickers = doc["tickers"].to<JsonArray>();
     for (int i = 0; i < config->numTickers; i++) {
@@ -64,6 +65,7 @@ void initWebServer(AppConfig* config, TickerData* tickerData, void (*onConfigCha
         doc["numTickers"] = g_config->numTickers;
         doc["twelveDataApiKey"] = g_config->twelveDataApiKey;
         doc["coinGeckoApiKey"] = g_config->coinGeckoApiKey;
+        doc["cmcApiKey"] = g_config->cmcApiKey;
 
         JsonArray tickers = doc["tickers"].to<JsonArray>();
         for (int i = 0; i < g_config->numTickers; i++) {
@@ -114,6 +116,9 @@ void initWebServer(AppConfig* config, TickerData* tickerData, void (*onConfigCha
                 }
                 if (!doc["coinGeckoApiKey"].isNull()) {
                     strlcpy(g_config->coinGeckoApiKey, doc["coinGeckoApiKey"] | "", sizeof(g_config->coinGeckoApiKey));
+                }
+                if (!doc["cmcApiKey"].isNull()) {
+                    strlcpy(g_config->cmcApiKey, doc["cmcApiKey"] | "", sizeof(g_config->cmcApiKey));
                 }
 
                 if (!doc["tickers"].isNull()) {

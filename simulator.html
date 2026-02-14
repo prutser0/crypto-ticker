@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>CryptoTicker 64x32 Display Simulator</title>
+<style>
+  body { background: #1a1a1a; color: #fff; font-family: monospace; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+  h2 { margin: 0 0 10px; }
+  .sim { text-align: center; margin: 20px 0; }
+  .sim h3 { margin: 5px 0; color: #aaa; }
+  canvas { image-rendering: pixelated; border: 2px solid #333; }
+  .controls { margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  button { background: #333; color: #fff; border: 1px solid #555; padding: 8px 16px; cursor: pointer; border-radius: 4px; font-size: 14px; }
+  button:hover { background: #444; }
+  button.active { background: #0a5; }
+  .layout-info { color: #666; font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h2>CryptoTicker 64x32 Simulator</h2>
+
+<div class="sim">
+  <h3 id="ticker-label">BTC $66972 -1.2% 24H</h3>
+  <div style="position:relative; display:inline-block;">
+    <canvas id="display" width="640" height="320"></canvas>
+  </div>
+  <div class="layout-info">
+    Custom 5x7 font | Row 0-6: Symbol(left)+Price(right) | Row 8-14: Change%+TF | Row 16-31: Sparkline (16px)
+  </div>
+</div>
+
+<div class="controls">
+  <button onclick="cycleTicker()">Next Ticker</button>
+  <button onclick="cycleTimeframe()">Next Timeframe</button>
+  <button onclick="toggleSign()">Toggle +/-</button>
+  <button id="autoBtn" onclick="autoPlay()">Auto Play</button>
+</div>
+
+<script>
+// Custom 5x7 pixel font - matches firmware FONT5X7[][7]
+// Each char: 7 rows, each row is 5 bits (bit4=left, bit0=right)
+const FONT5X7 = {
+  ' ': [0x00,0x00,0x00,0x00,0x00,0x00,0x00],
+  '!': [0x04,0x04,0x04,0x04,0x04,0x00,0x04],
+  '$': [0x04,0x0F,0x14,0x0E,0x05,0x1E,0x04],
+  '%': [0x19,0x1A,0x02,0x04,0x08,0x0B,0x13],
+  '+': [0x00,0x04,0x04,0x1F,0x04,0x04,0x00],
+  '-': [0x00,0x00,0x00,0x0E,0x00,0x00,0x00],
+  '.': [0x00,0x00,0x00,0x00,0x00,0x00,0x04],
+  '/': [0x01,0x01,0x02,0x04,0x08,0x10,0x10],
+  '0': [0x0E,0x11,0x13,0x15,0x19,0x11,0x0E],
+  '1': [0x04,0x0C,0x04,0x04,0x04,0x04,0x0E],
+  '2': [0x0E,0x11,0x01,0x02,0x04,0x08,0x1F],
+  '3': [0x0E,0x11,0x01,0x06,0x01,0x11,0x0E],
+  '4': [0x02,0x06,0x0A,0x12,0x1F,0x02,0x02],
+  '5': [0x1F,0x10,0x1E,0x01,0x01,0x11,0x0E],
+  '6': [0x0E,0x10,0x10,0x1E,0x11,0x11,0x0E],
+  '7': [0x1F,0x11,0x01,0x02,0x04,0x04,0x04],
+  '8': [0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E],
+  '9': [0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C],
+  'A': [0x04,0x0A,0x11,0x11,0x1F,0x11,0x11],
+  'B': [0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E],
+  'C': [0x0E,0x11,0x10,0x10,0x10,0x11,0x0E],
+  'D': [0x1C,0x12,0x11,0x11,0x11,0x12,0x1C],
+  'E': [0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F],
+  'F': [0x1F,0x10,0x10,0x1E,0x10,0x10,0x10],
+  'G': [0x0E,0x11,0x10,0x13,0x11,0x11,0x0F],
+  'H': [0x11,0x11,0x11,0x1F,0x11,0x11,0x11],
+  'I': [0x0E,0x04,0x04,0x04,0x04,0x04,0x0E],
+  'J': [0x07,0x02,0x02,0x02,0x02,0x12,0x0C],
+  'K': [0x11,0x12,0x14,0x18,0x14,0x12,0x11],
+  'L': [0x10,0x10,0x10,0x10,0x10,0x10,0x1F],
+  'M': [0x11,0x1B,0x15,0x15,0x11,0x11,0x11],
+  'N': [0x11,0x19,0x19,0x15,0x13,0x13,0x11],
+  'O': [0x0E,0x11,0x11,0x11,0x11,0x11,0x0E],
+  'P': [0x1E,0x11,0x11,0x1E,0x10,0x10,0x10],
+  'Q': [0x0E,0x11,0x11,0x11,0x15,0x12,0x0D],
+  'R': [0x1E,0x11,0x11,0x1E,0x14,0x12,0x11],
+  'S': [0x0E,0x11,0x10,0x0E,0x01,0x11,0x0E],
+  'T': [0x1F,0x04,0x04,0x04,0x04,0x04,0x04],
+  'U': [0x11,0x11,0x11,0x11,0x11,0x11,0x0E],
+  'V': [0x11,0x11,0x11,0x11,0x0A,0x0A,0x04],
+  'W': [0x11,0x11,0x11,0x15,0x15,0x1B,0x11],
+  'X': [0x11,0x11,0x0A,0x04,0x0A,0x11,0x11],
+  'Y': [0x11,0x11,0x0A,0x04,0x04,0x04,0x04],
+  'Z': [0x1F,0x01,0x02,0x04,0x08,0x10,0x1F],
+};
+
+const SCALE = 10;
+const W = 64, H = 32;
+
+const tickers = [
+  { symbol: 'BTC', price: 66972, change: -1.19 },
+  { symbol: 'ETH', price: 1959.41, change: -1.64 },
+  { symbol: 'SOL', price: 80.24, change: -1.74 },
+  { symbol: 'DOGE', price: 0.09, change: 0.23 },
+  { symbol: 'XMR', price: 339.01, change: -0.51 },
+];
+const timeframes = ['24H', '7D', '30D', '90D'];
+let tickerIdx = 0, tfIdx = 0, forcePositive = null, autoTimer = null;
+
+function generateSparkline(seed, len, trend) {
+  const data = [];
+  let val = 128, s = seed;
+  for (let i = 0; i < len; i++) {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    const r = (s / 0x7fffffff) - 0.5;
+    val += (r + trend * 0.03) * 8;
+    val = Math.max(10, Math.min(245, val));
+    data.push(Math.round(val));
+  }
+  return data;
+}
+
+function formatPrice(price) {
+  if (price >= 10000) return '$' + Math.round(price);
+  if (price >= 100) return '$' + price.toFixed(1);
+  if (price >= 1) return '$' + price.toFixed(2);
+  return '$' + price.toFixed(4);
+}
+
+class Display {
+  constructor() {
+    this.pixels = new Array(W * H).fill(null);
+  }
+  clear() { this.pixels.fill(null); }
+  setPixel(x, y, color) {
+    x = Math.round(x); y = Math.round(y);
+    if (x >= 0 && x < W && y >= 0 && y < H)
+      this.pixels[y * W + x] = color;
+  }
+  // Draw single 5x7 character at (x,y) top-left, returns next x
+  drawChar(x, y, ch, color, advance = 6) {
+    const glyph = FONT5X7[ch];
+    if (!glyph) return x + advance;
+    if (ch === ' ') return x + advance;
+    for (let row = 0; row < 7; row++) {
+      const bits = glyph[row];
+      for (let col = 0; col < 5; col++) {
+        if (bits & (0x10 >> col)) {
+          this.setPixel(x + col, y + row, color);
+        }
+      }
+    }
+    return x + advance;
+  }
+  drawText(x, y, text, color, advance = 6) {
+    for (const ch of text) {
+      if (x + 5 > 64) break;
+      x = this.drawChar(x, y, ch, color, advance);
+    }
+    return x;
+  }
+  drawHLine(x, y, w, color) {
+    for (let i = 0; i < w; i++) this.setPixel(x + i, y, color);
+  }
+  drawLine(x0, y0, x1, y1, color) {
+    const dx = Math.abs(x1-x0), dy = Math.abs(y1-y0);
+    const sx = x0<x1?1:-1, sy = y0<y1?1:-1;
+    let err = dx - dy;
+    while (true) {
+      this.setPixel(x0, y0, color);
+      if (x0===x1 && y0===y1) break;
+      const e2 = 2*err;
+      if (e2 > -dy) { err -= dy; x0 += sx; }
+      if (e2 < dx) { err += dx; y0 += sy; }
+    }
+  }
+  render(canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const c = this.pixels[y * W + x];
+        const px = x * SCALE, py = y * SCALE;
+        if (c) {
+          ctx.fillStyle = c;
+          ctx.beginPath();
+          ctx.arc(px + SCALE/2, py + SCALE/2, SCALE/2 - 1, 0, Math.PI*2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = '#0a0a0a';
+          ctx.beginPath();
+          ctx.arc(px + SCALE/2, py + SCALE/2, SCALE/2 - 2, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+}
+
+function textWidth(text, advance = 6) {
+  if (text.length === 0) return 0;
+  return text.length * advance - 1;
+}
+
+function drawSparkline(disp, data, x, y, w, h, positive) {
+  const lineColor = positive ? '#00ff00' : '#ff0000';
+  const brightColor = positive ? '#b4ffb4' : '#ffb4b4';
+  const fillColor = positive ? '#005000' : '#500000';
+  let minVal = 255, maxVal = 0;
+  for (const v of data) { minVal = Math.min(minVal, v); maxVal = Math.max(maxVal, v); }
+  let range = maxVal - minVal; if (range === 0) range = 1;
+
+  const getY = (idx) => y + h - 1 - Math.round(((data[idx] - minVal) * (h - 1)) / range);
+
+  for (let i = 0; i < w; i++) {
+    let di = Math.floor((i * data.length) / w);
+    if (di >= data.length) di = data.length - 1;
+    const py = getY(di);
+    for (let fy = y + h - 1; fy > py; fy--) disp.setPixel(x + i, fy, fillColor);
+    disp.setPixel(x + i, py, brightColor);
+    if (i > 0) {
+      let pi = Math.floor(((i-1) * data.length) / w);
+      if (pi >= data.length) pi = data.length - 1;
+      disp.drawLine(x+i-1, getY(pi), x+i, py, lineColor);
+    }
+  }
+}
+
+// Layout matches firmware display_renderer.cpp with custom 5x7 font:
+//   Row 0-6:   Symbol (left) + Price (right)
+//   Row 8-14:  Change% + Timeframe
+//   Row 16-31: Sparkline (16 rows)
+function draw() {
+  const t = tickers[tickerIdx];
+  const tf = timeframes[tfIdx];
+  const positive = forcePositive !== null ? forcePositive : t.change >= 0;
+  const sparkData = generateSparkline(tickerIdx * 1000 + tfIdx, 64, positive ? 1 : -1);
+  const disp = new Display();
+
+  const white = '#ffffff';
+  const changeColor = positive ? '#00ff00' : '#ff0000';
+
+  // Line 1: Symbol left, Price right-aligned (y=0, 7px tall)
+  disp.drawText(0, 0, t.symbol, white);
+
+  const priceStr = formatPrice(t.price);
+  const priceW = textWidth(priceStr);
+  disp.drawText(63 - priceW, 0, priceStr, white);
+
+  // Line 2: Change% (left, tight) + Timeframe (right) (y=8, 7px tall)
+  const changeNum = (positive ? '+' : '') + t.change.toFixed(1);
+  let cx = disp.drawText(0, 8, changeNum, changeColor, 5);
+  cx += 1; // 1px gap
+  disp.drawChar(cx, 8, '%', changeColor, 6);
+
+  const tfW = textWidth(tf);
+  disp.drawText(63 - tfW, 8, tf, changeColor);
+
+  // Sparkline: row 16-31 (16 rows)
+  drawSparkline(disp, sparkData, 0, 16, 64, 16, positive);
+
+  disp.render(document.getElementById('display'));
+  document.getElementById('ticker-label').textContent =
+    t.symbol + ' ' + formatPrice(t.price) + ' ' +
+    (positive ? '+' : '') + t.change.toFixed(1) + '% ' + tf;
+}
+
+function cycleTicker() { tickerIdx = (tickerIdx + 1) % tickers.length; draw(); }
+function cycleTimeframe() { tfIdx = (tfIdx + 1) % timeframes.length; draw(); }
+function toggleSign() {
+  if (forcePositive === null) forcePositive = true;
+  else if (forcePositive) forcePositive = false;
+  else forcePositive = null;
+  draw();
+}
+function autoPlay() {
+  const btn = document.getElementById('autoBtn');
+  if (autoTimer) { clearInterval(autoTimer); autoTimer = null; btn.classList.remove('active'); return; }
+  btn.classList.add('active');
+  autoTimer = setInterval(() => {
+    tfIdx++;
+    if (tfIdx >= timeframes.length) { tfIdx = 0; tickerIdx = (tickerIdx + 1) % tickers.length; }
+    draw();
+  }, 2000);
+}
+
+draw();
+</script>
+</body>
+</html>

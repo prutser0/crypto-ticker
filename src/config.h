@@ -30,8 +30,8 @@
 
 // =================== TIMING ===================
 #define DEFAULT_BASE_TIME_MS      8000   // 8 seconds per timeframe
-#define DEFAULT_BRIGHTNESS        128
-#define CRYPTO_FETCH_INTERVAL_MS  60000  // 60 sec
+#define DEFAULT_BRIGHTNESS        64
+#define CRYPTO_FETCH_INTERVAL_MS  300000 // 5 min (CMC: ~8640 credits/month)
 #define STOCK_FETCH_INTERVAL_MS   8000   // 8 sec per stock (round-robin)
 #define SPARKLINE_24H_INTERVAL_MS 600000 // 10 min
 #define SPARKLINE_7D_INTERVAL_MS  1800000 // 30 min

@@ -31,7 +31,8 @@ struct TickerData {
     char name[MAX_NAME_LEN];
     TickerType type;
     float currentPrice;
-    float priceChange24h;  // percentage
+    float priceChange24h;  // percentage (from API)
+    float priceChange[TIMEFRAME_COUNT]; // per-timeframe change% (24h,7d,30d,90d)
     float high24h;
     float low24h;
     uint32_t lastPriceUpdate;
@@ -57,6 +58,7 @@ struct AppConfig {
     TickerConfig tickers[MAX_TICKERS];
     char twelveDataApiKey[64];
     char coinGeckoApiKey[64];     // Optional demo key
+    char cmcApiKey[64];           // CoinMarketCap API key
 };
 
 // Get default config
@@ -64,18 +66,25 @@ inline AppConfig getDefaultConfig() {
     AppConfig cfg = {};
     cfg.brightness = DEFAULT_BRIGHTNESS;
     cfg.baseTimeMs = DEFAULT_BASE_TIME_MS;
-    cfg.numTickers = 5;
 
     // Default tickers
     struct { const char* sym; const char* apiId; TickerType type; } defaults[] = {
-        {"BTC",  "bitcoin",  TICKER_CRYPTO},
-        {"ETH",  "ethereum", TICKER_CRYPTO},
-        {"SOL",  "solana",   TICKER_CRYPTO},
-        {"XMR",  "monero",   TICKER_CRYPTO},
-        {"DOGE", "dogecoin", TICKER_CRYPTO},
+        {"BTC",   "bitcoin",    TICKER_CRYPTO},
+        {"ETH",   "ethereum",   TICKER_CRYPTO},
+        {"SOL",   "solana",     TICKER_CRYPTO},
+        {"LTC",   "litecoin",   TICKER_CRYPTO},
+        {"DOGE",  "dogecoin",   TICKER_CRYPTO},
+        {"XMR",   "monero",     TICKER_CRYPTO},
+        {"MSTR",  "MSTR",       TICKER_STOCK},
+        {"NDX",   "QQQ",        TICKER_STOCK},
+        {"SPX",   "SPY",        TICKER_STOCK},
+        {"RUT",   "IWM",        TICKER_STOCK},
+        {"EUR",   "EUR/USD",    TICKER_FOREX},
     };
 
-    for (int i = 0; i < 5; i++) {
+    cfg.numTickers = 11;
+
+    for (int i = 0; i < cfg.numTickers; i++) {
         strncpy(cfg.tickers[i].symbol, defaults[i].sym, MAX_SYMBOL_LEN - 1);
         strncpy(cfg.tickers[i].apiId, defaults[i].apiId, MAX_API_ID_LEN - 1);
         cfg.tickers[i].type = defaults[i].type;

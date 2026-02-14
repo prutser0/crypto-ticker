@@ -8,6 +8,7 @@
 static HTTPClient http;
 static WiFiClientSecure client;
 static String coinGeckoApiKey = "";
+static String cmcApiKey = "";
 
 void initApiClient() {
   client.setInsecure(); // Skip cert validation - ESP32 has limited CA store
@@ -17,6 +18,88 @@ void initApiClient() {
 void setCoinGeckoApiKey(const char* key) {
   coinGeckoApiKey = String(key);
   Serial.printf("[API] CoinGecko API key set: %s\n", key);
+}
+
+void setCMCApiKey(const char* key) {
+  cmcApiKey = String(key);
+  Serial.printf("[API] CMC API key set\n");
+}
+
+int fetchCMCPrices(const char* slugs, TickerData* tickerData, int numTickers, const TickerConfig* configs) {
+  if (!slugs || strlen(slugs) == 0 || cmcApiKey.length() == 0) {
+    Serial.println("[API] CMC: no slugs or API key");
+    return 0;
+  }
+
+  String url = "https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?slug=";
+  url += slugs;
+
+  Serial.printf("[API] CMC fetching: %s\n", slugs);
+
+  http.begin(client, url);
+  http.setTimeout(10000);
+  http.addHeader("X-CMC_PRO_API_KEY", cmcApiKey);
+  http.addHeader("Accept", "application/json");
+  int httpCode = http.GET();
+
+  if (httpCode != 200) {
+    Serial.printf("[API] CMC HTTP error: %d\n", httpCode);
+    http.end();
+    return 0;
+  }
+
+  String payload = http.getString();
+  http.end();
+
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, payload);
+
+  if (error) {
+    Serial.printf("[API] CMC JSON parse error: %s\n", error.c_str());
+    return 0;
+  }
+
+  // Check API status
+  int errCode = doc["status"]["error_code"] | -1;
+  if (errCode != 0) {
+    const char* errMsg = doc["status"]["error_message"] | "unknown";
+    Serial.printf("[API] CMC API error %d: %s\n", errCode, errMsg);
+    return 0;
+  }
+
+  int updated = 0;
+  JsonObject data = doc["data"];
+
+  // Iterate over all entries in data (keyed by CMC numeric ID)
+  for (JsonPair kv : data) {
+    JsonObject coin = kv.value();
+    const char* slug = coin["slug"];
+    if (!slug) continue;
+
+    // Match slug to our ticker configs
+    for (int i = 0; i < numTickers; i++) {
+      if (configs[i].type == TICKER_CRYPTO && strcmp(configs[i].apiId, slug) == 0) {
+        JsonObject quote = coin["quote"]["USD"];
+        tickerData[i].currentPrice = quote["price"].as<float>();
+        tickerData[i].priceChange24h = quote["percent_change_24h"].as<float>();
+        tickerData[i].priceChange[TIMEFRAME_24H] = quote["percent_change_24h"].as<float>();
+        tickerData[i].priceChange[TIMEFRAME_7D]  = quote["percent_change_7d"].as<float>();
+        tickerData[i].priceChange[TIMEFRAME_30D] = quote["percent_change_30d"].as<float>();
+        tickerData[i].priceChange[TIMEFRAME_90D] = quote["percent_change_90d"].as<float>();
+        tickerData[i].priceValid = true;
+        updated++;
+
+        Serial.printf("[API] CMC %s: $%.2f (24h:%.1f%% 7d:%.1f%% 30d:%.1f%% 90d:%.1f%%)\n",
+                     configs[i].symbol, tickerData[i].currentPrice,
+                     tickerData[i].priceChange[0], tickerData[i].priceChange[1],
+                     tickerData[i].priceChange[2], tickerData[i].priceChange[3]);
+        break;
+      }
+    }
+  }
+
+  Serial.printf("[API] CMC credits used: %d\n", doc["status"]["credit_count"] | 0);
+  return updated;
 }
 
 int fetchCryptoPrices(const char* ids, TickerData* tickerData, int numTickers, const TickerConfig* configs) {
@@ -91,6 +174,10 @@ bool fetchCryptoChart(const char* coinId, int days, SparklineData* outSparkline)
   url += coinId;
   url += "/market_chart?vs_currency=usd&days=";
   url += String(days);
+  // Use daily interval for 30d+ to reduce response size (avoids memory issues)
+  if (days >= 14) {
+    url += "&interval=daily";
+  }
 
   if (coinGeckoApiKey.length() > 0) {
     url += "&x_cg_demo_api_key=";
@@ -138,40 +225,29 @@ bool fetchCryptoChart(const char* coinId, int days, SparklineData* outSparkline)
     if (price > maxPrice) maxPrice = price;
   }
 
-  // Downsample to SPARKLINE_POINTS buckets
-  float buckets[SPARKLINE_POINTS] = {0};
-  int bucketCounts[SPARKLINE_POINTS] = {0};
-  int bucketSize = rawCount / SPARKLINE_POINTS;
-  if (bucketSize < 1) bucketSize = 1;
-
-  int bucketIndex = 0;
-  int pointIndex = 0;
-
+  // Collect raw prices into temporary array
+  float* rawPrices = new float[rawCount];
+  int idx = 0;
   for (JsonArray point : prices) {
-    float price = point[1].as<float>();
-    buckets[bucketIndex] += price;
-    bucketCounts[bucketIndex]++;
-    pointIndex++;
-
-    if (pointIndex >= bucketSize && bucketIndex < SPARKLINE_POINTS - 1) {
-      pointIndex = 0;
-      bucketIndex++;
-    }
+    rawPrices[idx++] = point[1].as<float>();
   }
 
-  // Average buckets and scale to 0-255
+  // Resample to SPARKLINE_POINTS using linear interpolation
   float priceRange = maxPrice - minPrice;
-  if (priceRange < 0.0001) priceRange = 1.0; // Avoid division by zero
+  if (priceRange < 0.0001) priceRange = 1.0;
 
   for (int i = 0; i < SPARKLINE_POINTS; i++) {
-    if (bucketCounts[i] > 0) {
-      float avgPrice = buckets[i] / bucketCounts[i];
-      float normalized = (avgPrice - minPrice) / priceRange;
-      outSparkline->points[i] = (uint8_t)(normalized * 255.0);
-    } else {
-      outSparkline->points[i] = 0;
-    }
+    float srcPos = (float)i * (rawCount - 1) / (SPARKLINE_POINTS - 1);
+    int lo = (int)srcPos;
+    int hi = lo + 1;
+    if (hi >= rawCount) hi = rawCount - 1;
+    float frac = srcPos - lo;
+    float price = rawPrices[lo] * (1.0f - frac) + rawPrices[hi] * frac;
+    float normalized = (price - minPrice) / priceRange;
+    outSparkline->points[i] = (uint8_t)(normalized * 255.0);
   }
+
+  delete[] rawPrices;
 
   outSparkline->len = SPARKLINE_POINTS;
   outSparkline->priceMin = minPrice;
@@ -279,53 +355,34 @@ bool fetchStockChart(const char* symbol, const char* apiKey, const char* interva
     return false;
   }
 
-  // Parse prices and find min/max
+  // Parse prices in reverse order (API returns newest first) and find min/max
   float* rawPrices = new float[rawCount];
   float minPrice = FLT_MAX;
   float maxPrice = -FLT_MAX;
 
   for (int i = 0; i < rawCount; i++) {
-    float price = values[i]["close"].as<float>();
+    float price = values[rawCount - 1 - i]["close"].as<float>(); // reverse: oldest first
     rawPrices[i] = price;
     if (price < minPrice) minPrice = price;
     if (price > maxPrice) maxPrice = price;
   }
 
-  // Downsample to SPARKLINE_POINTS buckets (reverse order - newest first in API)
-  float buckets[SPARKLINE_POINTS] = {0};
-  int bucketCounts[SPARKLINE_POINTS] = {0};
-  int bucketSize = rawCount / SPARKLINE_POINTS;
-  if (bucketSize < 1) bucketSize = 1;
-
-  int bucketIndex = 0;
-  int pointIndex = 0;
-
-  for (int i = rawCount - 1; i >= 0; i--) { // Reverse order
-    buckets[bucketIndex] += rawPrices[i];
-    bucketCounts[bucketIndex]++;
-    pointIndex++;
-
-    if (pointIndex >= bucketSize && bucketIndex < SPARKLINE_POINTS - 1) {
-      pointIndex = 0;
-      bucketIndex++;
-    }
-  }
-
-  delete[] rawPrices;
-
-  // Average buckets and scale to 0-255
+  // Resample to SPARKLINE_POINTS using linear interpolation
   float priceRange = maxPrice - minPrice;
   if (priceRange < 0.0001) priceRange = 1.0;
 
   for (int i = 0; i < SPARKLINE_POINTS; i++) {
-    if (bucketCounts[i] > 0) {
-      float avgPrice = buckets[i] / bucketCounts[i];
-      float normalized = (avgPrice - minPrice) / priceRange;
-      outSparkline->points[i] = (uint8_t)(normalized * 255.0);
-    } else {
-      outSparkline->points[i] = 0;
-    }
+    float srcPos = (float)i * (rawCount - 1) / (SPARKLINE_POINTS - 1);
+    int lo = (int)srcPos;
+    int hi = lo + 1;
+    if (hi >= rawCount) hi = rawCount - 1;
+    float frac = srcPos - lo;
+    float price = rawPrices[lo] * (1.0f - frac) + rawPrices[hi] * frac;
+    float normalized = (price - minPrice) / priceRange;
+    outSparkline->points[i] = (uint8_t)(normalized * 255.0);
   }
+
+  delete[] rawPrices;
 
   outSparkline->len = SPARKLINE_POINTS;
   outSparkline->priceMin = minPrice;

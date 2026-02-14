@@ -3,9 +3,11 @@
 #include <WiFiManager.h>
 
 bool initWiFi(const char* apName) {
-    WiFiManager wifiManager;
+    // Ensure STA mode before WiFiManager
+    WiFi.mode(WIFI_STA);
 
-    // Set timeout to 120 seconds
+    WiFiManager wifiManager;
+    wifiManager.setConnectTimeout(20);
     wifiManager.setConfigPortalTimeout(120);
 
     // Try to connect with saved credentials, or start AP mode for config

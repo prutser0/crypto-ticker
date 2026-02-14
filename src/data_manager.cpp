@@ -2,6 +2,7 @@
 #include "config.h"
 #include "api_client.h"
 #include <Arduino.h>
+#include <LittleFS.h>
 
 static AppConfig* appConfig = nullptr;
 static TickerData* tickers = nullptr;
@@ -16,9 +17,67 @@ static int currentStockIndex = 0;
 static int currentSparklineTickerIndex = 0;
 static int currentSparklineTimeframe = 0; // 0=24h, 1=7d, 2=30d, 3=90d
 
+// Cache sparkline to LittleFS: /cache/<apiId>_<tf>.bin
+static String cachePath(const char* apiId, int tf) {
+  String path = "/cache/";
+  path += apiId;
+  path += "_";
+  path += String(tf);
+  path += ".bin";
+  return path;
+}
+
+static void saveSparklineCache(const char* apiId, int tf, const SparklineData* sp) {
+  String path = cachePath(apiId, tf);
+  File f = LittleFS.open(path, "w");
+  if (!f) return;
+  f.write((uint8_t*)sp, sizeof(SparklineData));
+  f.close();
+}
+
+static bool loadSparklineCache(const char* apiId, int tf, SparklineData* sp) {
+  String path = cachePath(apiId, tf);
+  File f = LittleFS.open(path, "r");
+  if (!f) return false;
+  if (f.size() != sizeof(SparklineData)) { f.close(); return false; }
+  f.read((uint8_t*)sp, sizeof(SparklineData));
+  f.close();
+  return sp->valid;
+}
+
 void initDataManager(AppConfig* config, TickerData* tickerData) {
   appConfig = config;
   tickers = tickerData;
+
+  // Ensure cache directory exists
+  LittleFS.mkdir("/cache");
+
+  // Copy symbol and type from config into ticker data
+  for (int i = 0; i < config->numTickers; i++) {
+    strlcpy(tickerData[i].symbol, config->tickers[i].symbol, MAX_SYMBOL_LEN);
+    tickerData[i].type = config->tickers[i].type;
+
+    // Load cached sparklines
+    for (int tf = 0; tf < 4; tf++) {
+      if (loadSparklineCache(config->tickers[i].apiId, tf, &tickerData[i].sparklines[tf])) {
+        Serial.printf("[DataMgr] Loaded cached sparkline: %s tf=%d\n", config->tickers[i].symbol, tf);
+
+        // Compute change% from cached sparkline for stocks/forex
+        SparklineData* sp = &tickerData[i].sparklines[tf];
+        if (config->tickers[i].type != TICKER_CRYPTO && sp->valid && sp->len > 1) {
+          float range = sp->priceMax - sp->priceMin;
+          if (range > 0.0001f) {
+            float startPrice = sp->priceMin + (sp->points[0] / 255.0f) * range;
+            float endPrice = sp->priceMin + (sp->points[sp->len - 1] / 255.0f) * range;
+            if (startPrice > 0.0001f) {
+              tickerData[i].priceChange[tf] = ((endPrice - startPrice) / startPrice) * 100.0f;
+              if (tf == 0) tickerData[i].priceChange24h = tickerData[i].priceChange[tf];
+            }
+          }
+        }
+      }
+    }
+  }
 
   lastCryptoFetch = 0;
   lastStockFetch = 0;
@@ -45,25 +104,33 @@ void updateData() {
 
   unsigned long now = millis();
 
-  // 1. Fetch crypto prices (batch call for all enabled crypto tickers)
+  // 1. Fetch crypto prices (CMC preferred, CoinGecko fallback)
   if (now - lastCryptoFetch >= CRYPTO_FETCH_INTERVAL_MS || lastCryptoFetch == 0) {
-    // Build comma-separated list of CoinGecko IDs
-    String cryptoIds = "";
+    // Build comma-separated list of slugs/IDs
+    String cryptoSlugs = "";
     int cryptoCount = 0;
 
     for (int i = 0; i < appConfig->numTickers; i++) {
       if (appConfig->tickers[i].enabled && appConfig->tickers[i].type == TICKER_CRYPTO) {
         if (cryptoCount > 0) {
-          cryptoIds += ",";
+          cryptoSlugs += ",";
         }
-        cryptoIds += appConfig->tickers[i].apiId;
+        cryptoSlugs += appConfig->tickers[i].apiId;
         cryptoCount++;
       }
     }
 
     if (cryptoCount > 0) {
-      Serial.printf("[DataMgr] Fetching %d crypto tickers\n", cryptoCount);
-      int updated = fetchCryptoPrices(cryptoIds.c_str(), tickers, appConfig->numTickers, appConfig->tickers);
+      int updated = 0;
+      if (strlen(appConfig->cmcApiKey) > 0) {
+        // Use CoinMarketCap (gives per-timeframe change%)
+        Serial.printf("[DataMgr] CMC: fetching %d crypto tickers\n", cryptoCount);
+        updated = fetchCMCPrices(cryptoSlugs.c_str(), tickers, appConfig->numTickers, appConfig->tickers);
+      } else {
+        // Fallback to CoinGecko
+        Serial.printf("[DataMgr] CoinGecko: fetching %d crypto tickers\n", cryptoCount);
+        updated = fetchCryptoPrices(cryptoSlugs.c_str(), tickers, appConfig->numTickers, appConfig->tickers);
+      }
       Serial.printf("[DataMgr] Updated %d/%d crypto tickers\n", updated, cryptoCount);
     }
 
@@ -92,16 +159,9 @@ void updateData() {
       Serial.printf("[DataMgr] Fetching stock: %s\n", config->symbol);
 
       if (fetchStockPrice(config->apiId, appConfig->twelveDataApiKey, &price)) {
-        // Calculate 24h change (simplified - would need historical data for accuracy)
-        // For now, just update price and mark as valid
-        float oldPrice = tickers[currentStockIndex].currentPrice;
         tickers[currentStockIndex].currentPrice = price;
         tickers[currentStockIndex].priceValid = true;
-
-        // Calculate change if we have old price
-        if (oldPrice > 0 && tickers[currentStockIndex].priceChange24h == 0) {
-          tickers[currentStockIndex].priceChange24h = ((price - oldPrice) / oldPrice) * 100.0;
-        }
+        // Change% is computed from sparkline data (see sparkline fetch below)
 
         Serial.printf("[DataMgr] Updated %s: $%.2f\n", config->symbol, price);
       } else {
@@ -115,7 +175,15 @@ void updateData() {
   }
 
   // 3. Fetch sparkline data (round-robin through all tickers and timeframes)
-  unsigned long sparklineInterval = SPARKLINE_24H_INTERVAL_MS;
+  // Use fast interval (2s) until all sparklines are populated, then normal intervals
+  bool allPopulated = true;
+  for (int i = 0; i < appConfig->numTickers && allPopulated; i++) {
+    if (!appConfig->tickers[i].enabled) continue;
+    for (int tf = 0; tf < 4; tf++) {
+      if (!tickers[i].sparklines[tf].valid) { allPopulated = false; break; }
+    }
+  }
+  unsigned long sparklineInterval = allPopulated ? SPARKLINE_24H_INTERVAL_MS : 15000;
   if (now - lastSparklineFetch >= sparklineInterval || lastSparklineFetch == 0) {
     // Find next enabled ticker
     int startTicker = currentSparklineTickerIndex;
@@ -174,7 +242,27 @@ void updateData() {
       }
 
       if (success) {
-        Serial.printf("[DataMgr] Updated sparkline for %s (%dd)\n", config->symbol, days);
+        saveSparklineCache(config->apiId, currentSparklineTimeframe, sparkline);
+
+        // Compute change% from sparkline data for stocks/forex
+        // (crypto uses CMC's per-timeframe change% which is more accurate)
+        if (config->type != TICKER_CRYPTO && sparkline->valid && sparkline->len > 1) {
+          float range = sparkline->priceMax - sparkline->priceMin;
+          if (range > 0.0001f) {
+            float startPrice = sparkline->priceMin + (sparkline->points[0] / 255.0f) * range;
+            float endPrice = sparkline->priceMin + (sparkline->points[sparkline->len - 1] / 255.0f) * range;
+            if (startPrice > 0.0001f) {
+              float pct = ((endPrice - startPrice) / startPrice) * 100.0f;
+              tickers[currentSparklineTickerIndex].priceChange[currentSparklineTimeframe] = pct;
+              if (currentSparklineTimeframe == 0) {
+                tickers[currentSparklineTickerIndex].priceChange24h = pct;
+              }
+              Serial.printf("[DataMgr] %s %dd change: %.1f%%\n", config->symbol, days, pct);
+            }
+          }
+        }
+
+        Serial.printf("[DataMgr] Updated + cached sparkline for %s (%dd)\n", config->symbol, days);
       } else {
         Serial.printf("[DataMgr] Failed to fetch sparkline for %s (%dd)\n", config->symbol, days);
       }
